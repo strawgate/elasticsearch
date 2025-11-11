@@ -93,6 +93,7 @@ public class PlanWritables {
             OrderBy.ENTRY,
             Project.ENTRY,
             Rerank.ENTRY,
+            org.elasticsearch.xpack.esql.plan.logical.S3Relation.ENTRY,
             Sample.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
