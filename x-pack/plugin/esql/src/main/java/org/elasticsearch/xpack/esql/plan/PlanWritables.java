@@ -122,6 +122,7 @@ public class PlanWritables {
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
+            org.elasticsearch.xpack.esql.plan.physical.S3SourceExec.ENTRY,
             SampleExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,6 +26,11 @@ import java.util.Objects;
  * Similar to EsQueryExec but for S3 sources.
  */
 public class S3SourceExec extends LeafExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "S3SourceExec",
+        S3SourceExec::new
+    );
     private final String s3Uri;
     private final List<Attribute> attrs;
     private final String format; // parquet, csv, json
@@ -50,6 +58,18 @@ public class S3SourceExec extends LeafExec implements EstimatesRowSize {
 
     public S3SourceExec(Source source, String s3Uri, List<Attribute> attrs, String format) {
         this(source, s3Uri, attrs, format, null, attrs, null);
+    }
+
+    private S3SourceExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readString(),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readString(),
+            in.readOptionalWriteable(Expression::readFrom),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readOptionalVInt()
+        );
     }
 
     @Override

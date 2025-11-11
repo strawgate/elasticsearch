@@ -293,6 +293,8 @@ public class LocalExecutionPlanner {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
+        } else if (node instanceof org.elasticsearch.xpack.esql.plan.physical.S3SourceExec s3Source) {
+            return planS3Source(s3Source, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
@@ -829,6 +831,29 @@ public class LocalExecutionPlanner {
         LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
+    }
+
+    private PhysicalOperation planS3Source(
+        org.elasticsearch.xpack.esql.plan.physical.S3SourceExec s3SourceExec,
+        LocalExecutionPlannerContext context
+    ) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(s3SourceExec.output());
+
+        // Create S3 client service
+        org.elasticsearch.xpack.esql.s3.S3ClientService s3ClientService =
+            new org.elasticsearch.xpack.esql.s3.S3ClientService();
+
+        // Create operator factory
+        int pageSize = 1000; // TODO: make this configurable
+        var operatorFactory = new org.elasticsearch.compute.operator.s3.S3SourceOperator.S3SourceOperatorFactory(
+            s3ClientService,
+            s3SourceExec.s3Uri(),
+            s3SourceExec.output(),
+            pageSize
+        );
+
+        return PhysicalOperation.fromSource(operatorFactory, layout.build());
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {
