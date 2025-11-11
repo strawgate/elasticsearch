@@ -47,6 +47,24 @@ dependencies {
   api project(":libs:h3")
   implementation project('arrow')
 
+  // AWS SDK for S3 support
+  implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+
+  // Apache Parquet for S3 file format support
+  implementation 'org.apache.parquet:parquet-column:1.13.1'
+  implementation 'org.apache.parquet:parquet-hadoop:1.13.1'
+  implementation 'org.apache.hadoop:hadoop-common:3.3.6'
+
+  // CSV support
+  implementation 'com.opencsv:opencsv:5.7.1'
+
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
