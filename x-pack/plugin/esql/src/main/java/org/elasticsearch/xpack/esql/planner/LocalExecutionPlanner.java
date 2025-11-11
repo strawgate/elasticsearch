@@ -846,7 +846,7 @@ public class LocalExecutionPlanner {
 
         // Create operator factory
         int pageSize = 1000; // TODO: make this configurable
-        var operatorFactory = new org.elasticsearch.compute.operator.s3.S3SourceOperator.S3SourceOperatorFactory(
+        var operatorFactory = new org.elasticsearch.xpack.esql.planner.operator.s3.S3SourceOperator.S3SourceOperatorFactory(
             s3ClientService,
             s3SourceExec.s3Uri(),
             s3SourceExec.output(),

@@ -76,7 +76,7 @@ Uses AWS SDK's default credential chain:
 │    - Builds BytesRefBlocks for columns                          │
 │    - Creates Pages (1000 rows per page)                         │
 │    - Streams to downstream operators                            │
-│    Location: compute/operator/s3/S3SourceOperator.java          │
+│    Location: planner/operator/s3/S3SourceOperator.java          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -114,6 +114,7 @@ Uses AWS SDK's default credential chain:
 
 **Modified Files:**
 - `planner/LocalExecutionPlanner.java:296,836` - Operator wiring
+- **Location**: `planner/operator/s3/S3SourceOperator.java` (moved from compute module)
 
 ## Key Design Decisions
 
@@ -163,7 +164,7 @@ elasticsearch/x-pack/plugin/esql/
 │   └── planner/
 │       ├── mapper/Mapper.java                 # Modified: S3Relation mapping
 │       └── LocalExecutionPlanner.java         # Modified: Operator wiring
-├── compute/src/main/java/org/elasticsearch/compute/operator/
+├── planner/operator/
 │   └── s3/
 │       └── S3SourceOperator.java              # Execution operator
 └── build.gradle                                # Modified: Dependencies

@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.compute.operator.s3;
+package org.elasticsearch.xpack.esql.planner.operator.s3;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -233,7 +233,7 @@ public class S3SourceOperator extends SourceOperator {
     /**
      * Factory for creating S3SourceOperator instances.
      */
-    public static class S3SourceOperatorFactory implements SourceOperatorFactory {
+    public static class S3SourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
         private final S3ClientService s3ClientService;
         private final String s3Uri;
         private final List<Attribute> attributes;
