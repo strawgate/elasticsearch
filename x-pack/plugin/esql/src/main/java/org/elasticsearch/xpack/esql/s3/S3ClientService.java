@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.s3;
 
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.net.URI;
 
 /**
  * Service for managing S3 client lifecycle and configuration.
@@ -35,7 +37,9 @@ public class S3ClientService implements Closeable {
         // Build S3 client with default credentials chain (env vars, system props, profiles, etc.)
         this.s3Client = S3Client.builder()
             .region(region)
+            .endpointOverride(URI.create("http://192.168.0.193:4566"))
             .httpClientBuilder(httpClientBuilder)
+            .credentialsProvider(AnonymousCredentialsProvider.create())
             .build();
     }
 
