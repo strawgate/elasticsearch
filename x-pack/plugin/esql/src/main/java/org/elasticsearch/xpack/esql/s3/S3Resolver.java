@@ -6,16 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.s3;
 
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
-import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+
+import java.util.HashMap;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -95,9 +93,9 @@ public class S3Resolver {
 
             // Simplified: Return a basic schema
             // TODO: Properly read Parquet schema using ParquetFileReader
-            attributes.add(new FieldAttribute(source, "id", new KeywordEsField("id")));
-            attributes.add(new FieldAttribute(source, "name", new KeywordEsField("name")));
-            attributes.add(new FieldAttribute(source, "value", new KeywordEsField("value")));
+            attributes.add(new FieldAttribute(source, "id", new KeywordEsField("id", new HashMap<>(), true, Short.MAX_VALUE, false, false, null)));
+            attributes.add(new FieldAttribute(source, "name", new KeywordEsField("name", new HashMap<>(), true, Short.MAX_VALUE, false, false, null)));
+            attributes.add(new FieldAttribute(source, "value", new KeywordEsField("value", new HashMap<>(), true, Short.MAX_VALUE, false, false, null)));
 
             return attributes;
         }
@@ -113,25 +111,10 @@ public class S3Resolver {
 
         // Simplified: Return a basic schema
         // TODO: Properly infer CSV schema by sampling rows
-        attributes.add(new FieldAttribute(source, "column1", new KeywordEsField("column1")));
-        attributes.add(new FieldAttribute(source, "column2", new KeywordEsField("column2")));
+        attributes.add(new FieldAttribute(source, "column1", new KeywordEsField("column1", new HashMap<>(), true, Short.MAX_VALUE, false, false, null)));
+        attributes.add(new FieldAttribute(source, "column2", new KeywordEsField("column2", new HashMap<>(), true, Short.MAX_VALUE, false, false, null)));
 
         return attributes;
     }
 
-    /**
-     * Convert Parquet type to ESQL DataType.
-     * This is a simplified mapping - full implementation would handle all Parquet types.
-     */
-    private DataType parquetTypeToDataType(Type.Repetition repetition, org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName primitiveType) {
-        return switch (primitiveType) {
-            case INT32 -> DataType.INTEGER;
-            case INT64 -> DataType.LONG;
-            case FLOAT -> DataType.DOUBLE;
-            case DOUBLE -> DataType.DOUBLE;
-            case BOOLEAN -> DataType.BOOLEAN;
-            case BINARY, FIXED_LEN_BYTE_ARRAY -> DataType.KEYWORD;
-            default -> DataType.KEYWORD;
-        };
-    }
 }

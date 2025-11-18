@@ -66,7 +66,7 @@ public class S3SourceExec extends LeafExec implements EstimatesRowSize {
             in.readString(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readString(),
-            in.readOptionalWriteable(Expression::readFrom),
+            in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalVInt()
         );

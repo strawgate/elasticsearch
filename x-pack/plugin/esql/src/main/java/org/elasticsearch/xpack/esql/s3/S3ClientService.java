@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.s3;
 
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -35,19 +32,10 @@ public class S3ClientService implements Closeable {
             .connectionTimeout(Duration.ofSeconds(10))
             .socketTimeout(Duration.ofSeconds(30));
 
-        // Configure retry strategy
-        ClientOverrideConfiguration.Builder clientConfig = ClientOverrideConfiguration.builder()
-            .retryStrategy(builder -> builder
-                .retryMode(RetryMode.STANDARD)
-                .maxAttempts(5)
-            );
-
-        // Build S3 client with instance profile credentials
+        // Build S3 client with default credentials chain (env vars, system props, profiles, etc.)
         this.s3Client = S3Client.builder()
             .region(region)
-            .credentialsProvider(DefaultCredentialsProvider.create())
             .httpClientBuilder(httpClientBuilder)
-            .overrideConfiguration(clientConfig.build())
             .build();
     }
 

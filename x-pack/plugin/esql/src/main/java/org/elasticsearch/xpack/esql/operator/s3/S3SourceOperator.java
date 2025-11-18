@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.compute.operator.s3;
+package org.elasticsearch.xpack.esql.operator.s3;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -222,11 +222,7 @@ public class S3SourceOperator extends SourceOperator {
     public void close() {
         closeCurrentReader();
         if (s3ClientService != null) {
-            try {
-                s3ClientService.close();
-            } catch (IOException e) {
-                // Log but don't fail
-            }
+            s3ClientService.close();
         }
     }
 
