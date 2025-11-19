@@ -83,6 +83,17 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
+        if (leaf instanceof org.elasticsearch.xpack.esql.plan.logical.S3Relation s3Relation) {
+            // Map S3Relation to S3SourceExec
+            // For now, S3 reading happens on coordinator, not as a fragment
+            return new org.elasticsearch.xpack.esql.plan.physical.S3SourceExec(
+                s3Relation.source(),
+                s3Relation.s3Uri(),
+                s3Relation.output(),
+                s3Relation.format()
+            );
+        }
+
         return MapperUtils.mapLeaf(leaf);
     }
 

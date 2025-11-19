@@ -208,6 +208,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
+            new ResolveS3Relation(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
@@ -304,6 +305,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
+        }
+    }
+
+    /**
+     * Resolve S3 relations by discovering schema from S3 objects.
+     */
+    private static class ResolveS3Relation extends ParameterizedAnalyzerRule<
+        org.elasticsearch.xpack.esql.plan.logical.UnresolvedS3Relation,
+        AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(org.elasticsearch.xpack.esql.plan.logical.UnresolvedS3Relation plan, AnalyzerContext context) {
+            try {
+                // Create S3Resolver and discover schema
+                org.elasticsearch.xpack.esql.s3.S3ClientService s3ClientService =
+                    new org.elasticsearch.xpack.esql.s3.S3ClientService();
+                org.elasticsearch.xpack.esql.s3.S3Resolver s3Resolver =
+                    new org.elasticsearch.xpack.esql.s3.S3Resolver(s3ClientService);
+
+                String s3Uri = plan.s3Uri();
+                org.elasticsearch.xpack.esql.s3.S3Uri parsed = org.elasticsearch.xpack.esql.s3.S3Uri.parse(s3Uri);
+
+                // Discover schema from S3
+                List<Attribute> attributes = s3Resolver.resolveSchema(plan.source(), s3Uri);
+
+                // Create resolved S3Relation
+                return new org.elasticsearch.xpack.esql.plan.logical.S3Relation(
+                    plan.source(),
+                    s3Uri,
+                    attributes,
+                    parsed.format()
+                );
+            } catch (Exception e) {
+                // Return unresolved with error message
+                return new org.elasticsearch.xpack.esql.plan.logical.UnresolvedS3Relation(
+                    plan.source(),
+                    plan.s3Uri(),
+                    "Failed to resolve S3 source: " + e.getMessage()
+                );
+            }
         }
     }
 
