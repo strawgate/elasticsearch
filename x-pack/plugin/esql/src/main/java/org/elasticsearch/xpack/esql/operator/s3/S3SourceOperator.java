@@ -47,6 +47,7 @@ public class S3SourceOperator extends SourceOperator {
     private Iterator<S3Object> objectIterator;
     private BufferedReader currentReader;
     private boolean finished;
+    private boolean headerSkipped;
 
     public S3SourceOperator(
         S3ClientService s3ClientService,
@@ -114,13 +115,31 @@ public class S3SourceOperator extends SourceOperator {
     }
 
     private List<S3Object> listS3Objects() {
-        ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
-            .bucket(s3Uri.bucket())
-            .prefix(s3Uri.prefix())
-            .build();
+        // Check if this is a specific file (no wildcards) or a pattern
+        if (s3Uri.key().contains("*")) {
+            // Pattern with wildcards - list and filter
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                .bucket(s3Uri.bucket())
+                .prefix(s3Uri.prefix())
+                .build();
 
-        ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
-        return listResponse.contents();
+            ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
+
+            // Filter results to match the pattern
+            String pattern = s3Uri.key().replace("*", ".*");
+            return listResponse.contents().stream()
+                .filter(obj -> obj.key().matches(pattern))
+                .toList();
+        } else {
+            // Specific file - return just this one file
+            // We don't need to list, just verify it exists (done in schema resolution)
+            // Create a minimal S3Object for this single file
+            return List.of(
+                software.amazon.awssdk.services.s3.model.S3Object.builder()
+                    .key(s3Uri.key())
+                    .build()
+            );
+        }
     }
 
     private BufferedReader openS3Object(String key) throws IOException {
@@ -130,6 +149,7 @@ public class S3SourceOperator extends SourceOperator {
             .build();
 
         ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(getRequest);
+        headerSkipped = false; // Reset for new file
         return new BufferedReader(new InputStreamReader(s3Stream));
     }
 
@@ -139,32 +159,30 @@ public class S3SourceOperator extends SourceOperator {
             columnData.add(new ArrayList<>());
         }
 
+        // Skip header line on first read of each file
+        if (!headerSkipped && currentReader != null) {
+            String headerLine = currentReader.readLine();
+            if (headerLine == null) {
+                return null; // Empty file
+            }
+            headerSkipped = true;
+        }
+
         int rowsRead = 0;
         String line;
 
-        // Skip header if first line
-        if (currentReader != null) {
-            currentReader.mark(1000);
-            line = currentReader.readLine();
-            if (line != null && line.contains(",")) {
-                // Check if this looks like a header (contains text)
-                boolean isHeader = false;
-                for (String part : line.split(",")) {
-                    if (part.matches(".*[a-zA-Z].*")) {
-                        isHeader = true;
-                        break;
-                    }
-                }
-                if (!isHeader) {
-                    currentReader.reset();
-                }
-            }
-        }
-
         while (rowsRead < pageSize && (line = currentReader.readLine()) != null) {
-            String[] values = line.split(",");
+            if (line.trim().isEmpty()) {
+                continue; // Skip empty lines
+            }
+
+            String[] values = parseCSVLine(line);
             for (int i = 0; i < Math.min(values.length, attributes.size()); i++) {
                 columnData.get(i).add(values[i].trim());
+            }
+            // Pad missing columns with null
+            for (int i = values.length; i < attributes.size(); i++) {
+                columnData.get(i).add(null);
             }
             rowsRead++;
         }
@@ -182,19 +200,152 @@ public class S3SourceOperator extends SourceOperator {
         return blocks;
     }
 
+    /**
+     * Parse a CSV line handling quotes and escaped characters.
+     * Matches the logic in S3Resolver for consistency.
+     */
+    private String[] parseCSVLine(String line) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+
+            if (c == '"') {
+                // Handle escaped quotes ("")
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++; // Skip next quote
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                // End of field
+                result.add(current.toString());
+                current = new StringBuilder();
+            } else {
+                current.append(c);
+            }
+        }
+
+        // Add last field
+        result.add(current.toString());
+
+        return result.toArray(new String[0]);
+    }
+
     private Block buildBlock(List<Object> data, Attribute attribute) {
         String typeName = attribute.dataType().typeName();
 
-        // Simplified type handling - treat everything as keyword for now
-        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(data.size());
-        for (Object value : data) {
-            if (value == null) {
-                builder.appendNull();
-            } else {
-                builder.appendBytesRef(new org.apache.lucene.util.BytesRef(value.toString()));
-            }
+        // Handle different data types
+        switch (typeName) {
+            case "integer":
+                IntBlock.Builder intBuilder = blockFactory.newIntBlockBuilder(data.size());
+                for (Object value : data) {
+                    if (value == null || value.toString().trim().isEmpty()) {
+                        intBuilder.appendNull();
+                    } else {
+                        try {
+                            intBuilder.appendInt(Integer.parseInt(value.toString().trim()));
+                        } catch (NumberFormatException e) {
+                            intBuilder.appendNull(); // Fallback to null on parse error
+                        }
+                    }
+                }
+                return intBuilder.build();
+
+            case "long":
+                LongBlock.Builder longBuilder = blockFactory.newLongBlockBuilder(data.size());
+                for (Object value : data) {
+                    if (value == null || value.toString().trim().isEmpty()) {
+                        longBuilder.appendNull();
+                    } else {
+                        try {
+                            longBuilder.appendLong(Long.parseLong(value.toString().trim()));
+                        } catch (NumberFormatException e) {
+                            longBuilder.appendNull();
+                        }
+                    }
+                }
+                return longBuilder.build();
+
+            case "double":
+                // Use LongBlock for doubles (stored as bits)
+                LongBlock.Builder doubleBuilder = blockFactory.newLongBlockBuilder(data.size());
+                for (Object value : data) {
+                    if (value == null || value.toString().trim().isEmpty()) {
+                        doubleBuilder.appendNull();
+                    } else {
+                        try {
+                            double d = Double.parseDouble(value.toString().trim());
+                            doubleBuilder.appendLong(Double.doubleToLongBits(d));
+                        } catch (NumberFormatException e) {
+                            doubleBuilder.appendNull();
+                        }
+                    }
+                }
+                return doubleBuilder.build();
+
+            case "boolean":
+                // Booleans stored as bytes (0 or 1) in IntBlock
+                IntBlock.Builder boolBuilder = blockFactory.newIntBlockBuilder(data.size());
+                for (Object value : data) {
+                    if (value == null || value.toString().trim().isEmpty()) {
+                        boolBuilder.appendNull();
+                    } else {
+                        String strValue = value.toString().trim().toLowerCase();
+                        if (strValue.equals("true")) {
+                            boolBuilder.appendInt(1);
+                        } else if (strValue.equals("false")) {
+                            boolBuilder.appendInt(0);
+                        } else {
+                            boolBuilder.appendNull();
+                        }
+                    }
+                }
+                return boolBuilder.build();
+
+            case "datetime":
+            case "date":
+                // Datetime stored as epoch milliseconds in LongBlock
+                LongBlock.Builder dateBuilder = blockFactory.newLongBlockBuilder(data.size());
+                for (Object value : data) {
+                    if (value == null || value.toString().trim().isEmpty()) {
+                        dateBuilder.appendNull();
+                    } else {
+                        try {
+                            String dateStr = value.toString().trim();
+                            // Parse ISO-8601 format or epoch milliseconds
+                            long epochMillis;
+                            if (dateStr.matches("\\d+")) {
+                                // Already epoch milliseconds
+                                epochMillis = Long.parseLong(dateStr);
+                            } else {
+                                // Parse ISO-8601 date string
+                                epochMillis = java.time.Instant.parse(dateStr).toEpochMilli();
+                            }
+                            dateBuilder.appendLong(epochMillis);
+                        } catch (Exception e) {
+                            // If parsing fails, append null
+                            dateBuilder.appendNull();
+                        }
+                    }
+                }
+                return dateBuilder.build();
+
+            default:
+                // Default to BytesRef for keyword/text types
+                BytesRefBlock.Builder bytesBuilder = blockFactory.newBytesRefBlockBuilder(data.size());
+                for (Object value : data) {
+                    if (value == null) {
+                        bytesBuilder.appendNull();
+                    } else {
+                        bytesBuilder.appendBytesRef(new org.apache.lucene.util.BytesRef(value.toString()));
+                    }
+                }
+                return bytesBuilder.build();
         }
-        return builder.build();
     }
 
     private void closeCurrentReader() {
