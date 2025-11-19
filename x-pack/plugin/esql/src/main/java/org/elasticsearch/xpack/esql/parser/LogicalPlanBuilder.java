@@ -356,7 +356,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             });
         }
-        IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
+        String indexPatternString = visitIndexPattern(indexPatternsCtx);
+
+        // Check if this is an S3 URI (starts with "s3://")
+        if (indexPatternString.startsWith("s3://")) {
+            // S3 does not support metadata fields or subqueries
+            if (ctx != null && ctx.metadata() != null) {
+                throw new ParsingException(source, "Metadata fields are not supported with S3 sources");
+            }
+            if (subqueriesCtx.isEmpty() == false) {
+                throw new ParsingException(source, "Subqueries are not supported with S3 sources");
+            }
+            // Create an UnresolvedS3Relation instead of UnresolvedRelation
+            return new org.elasticsearch.xpack.esql.plan.logical.UnresolvedS3Relation(source, indexPatternString);
+        }
+
+        IndexPattern table = new IndexPattern(source, indexPatternString);
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {

@@ -14,9 +14,15 @@ dependencies {
   compileOnly project('ann')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('ml'))
+  compileOnly project(xpackModule('esql-core'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
+
+  // AWS SDK for S3 support - needed for S3SourceOperator
+  compileOnly "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))

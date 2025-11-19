@@ -95,7 +95,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             String selectorString = visitSelectorString(c.selectorString());
 
             hasSeenStar.set(hasSeenStar.get() || indexPattern.contains(WILDCARD));
-            validate(clusterString, indexPattern, selectorString, c, hasSeenStar.get());
+
+            // Skip validation for S3 URIs - they will be validated later in LogicalPlanBuilder
+            if (indexPattern.startsWith("s3://") == false) {
+                validate(clusterString, indexPattern, selectorString, c, hasSeenStar.get());
+            }
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
