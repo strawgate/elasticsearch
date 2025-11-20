@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.operator.s3;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -271,15 +272,15 @@ public class S3SourceOperator extends SourceOperator {
                 return longBuilder.build();
 
             case "double":
-                // Use LongBlock for doubles (stored as bits)
-                LongBlock.Builder doubleBuilder = blockFactory.newLongBlockBuilder(data.size());
+                // Use DoubleBlock for double values
+                DoubleBlock.Builder doubleBuilder = blockFactory.newDoubleBlockBuilder(data.size());
                 for (Object value : data) {
                     if (value == null || value.toString().trim().isEmpty()) {
                         doubleBuilder.appendNull();
                     } else {
                         try {
                             double d = Double.parseDouble(value.toString().trim());
-                            doubleBuilder.appendLong(Double.doubleToLongBits(d));
+                            doubleBuilder.appendDouble(d);
                         } catch (NumberFormatException e) {
                             doubleBuilder.appendNull();
                         }
@@ -338,7 +339,7 @@ public class S3SourceOperator extends SourceOperator {
                 // Default to BytesRef for keyword/text types
                 BytesRefBlock.Builder bytesBuilder = blockFactory.newBytesRefBlockBuilder(data.size());
                 for (Object value : data) {
-                    if (value == null) {
+                    if (value == null || value.toString().trim().isEmpty()) {
                         bytesBuilder.appendNull();
                     } else {
                         bytesBuilder.appendBytesRef(new org.apache.lucene.util.BytesRef(value.toString()));

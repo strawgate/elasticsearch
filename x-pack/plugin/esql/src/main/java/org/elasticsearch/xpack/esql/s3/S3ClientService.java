@@ -37,9 +37,7 @@ public class S3ClientService implements Closeable {
         // Build S3 client with default credentials chain (env vars, system props, profiles, etc.)
         this.s3Client = S3Client.builder()
             .region(region)
-            .endpointOverride(URI.create("http://192.168.0.193:4566"))
             .httpClientBuilder(httpClientBuilder)
-            .credentialsProvider(AnonymousCredentialsProvider.create())
             .build();
     }
 
