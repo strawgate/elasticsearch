@@ -155,14 +155,20 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
     private static TestCaseSupplier fixedNullCase(String name, String json, String path) {
         // Determine the specific exception message based on the test case
         String exceptionMessage;
-        if (json.contains("{invalid")) {
+        if (name.contains("malformed")) {
+            // Line 223: Failed to parse JSON or extract value
             exceptionMessage = "Failed to parse JSON or extract value";
-        } else if (path.contains("[invalid")) {
+        } else if (name.contains("invalid path")) {
+            // Line 195: Invalid JSONPath syntax
             exceptionMessage = "Invalid JSONPath syntax: " + path;
+        } else if (name.contains("object") || name.contains("array")) {
+            // Line 216: Value at path is not a scalar (object or array)
+            exceptionMessage = "Value at path is not a scalar (object or array)";
         } else {
-            exceptionMessage = "Missing path in JSON: " + path;
+            // Line 204: Path not found or value is null (for missing paths)
+            exceptionMessage = "Path not found or value is null";
         }
-        
+
         return new TestCaseSupplier(name, List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
