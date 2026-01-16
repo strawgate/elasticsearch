@@ -686,8 +686,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             // Remove surrounding quotes (either single or double)
             str = str.substring(1, str.length() - 1);
         }
-        // Process escape sequences
-        return str.replace("\\\"", "\"").replace("\\\\", "\\");
+        // Process escape sequences (order matters: backslash must be last)
+        return str.replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t")
+            .replace("\\'", "'")
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\");
     }
 
     private Map<String, String> parseHeadersJson(Source source, String json) {
@@ -695,35 +700,122 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (json == null || json.isEmpty() || json.equals("{}")) {
             return result;
         }
-        // Simple JSON parser for {"key": "value"} format
-        // For production, consider using a proper JSON parser
         try {
             json = json.trim();
-            if (json.startsWith("{") && json.endsWith("}")) {
-                json = json.substring(1, json.length() - 1);
-                if (json.isEmpty() == false) {
-                    String[] pairs = json.split(",");
-                    for (String pair : pairs) {
-                        String[] kv = pair.split(":", 2);
-                        if (kv.length == 2) {
-                            String key = kv[0].trim();
-                            String value = kv[1].trim();
-                            // Remove quotes from key and value
-                            if ((key.startsWith("\"") && key.endsWith("\"")) || (key.startsWith("'") && key.endsWith("'"))) {
-                                key = key.substring(1, key.length() - 1);
-                            }
-                            if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-                                value = value.substring(1, value.length() - 1);
-                            }
-                            result.put(key, value);
-                        }
-                    }
+            if (json.startsWith("{") == false || json.endsWith("}") == false) {
+                throw new ParsingException(source, "Invalid headers JSON format: must be an object, got: " + json);
+            }
+            json = json.substring(1, json.length() - 1).trim();
+            if (json.isEmpty()) {
+                return result;
+            }
+
+            // Parse key-value pairs respecting quoted strings
+            int pos = 0;
+            while (pos < json.length()) {
+                // Skip whitespace
+                while (pos < json.length() && Character.isWhitespace(json.charAt(pos))) {
+                    pos++;
+                }
+                if (pos >= json.length()) {
+                    break;
+                }
+
+                // Parse key
+                String key = parseJsonString(json, pos, source);
+                pos += countJsonStringLength(json, pos);
+
+                // Skip whitespace and colon
+                while (pos < json.length() && Character.isWhitespace(json.charAt(pos))) {
+                    pos++;
+                }
+                if (pos >= json.length() || json.charAt(pos) != ':') {
+                    throw new ParsingException(source, "Invalid headers JSON format: expected ':' after key");
+                }
+                pos++; // skip colon
+
+                // Skip whitespace
+                while (pos < json.length() && Character.isWhitespace(json.charAt(pos))) {
+                    pos++;
+                }
+
+                // Parse value
+                String value = parseJsonString(json, pos, source);
+                pos += countJsonStringLength(json, pos);
+
+                result.put(key, value);
+
+                // Skip whitespace and comma
+                while (pos < json.length() && Character.isWhitespace(json.charAt(pos))) {
+                    pos++;
+                }
+                if (pos < json.length() && json.charAt(pos) == ',') {
+                    pos++; // skip comma
                 }
             }
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
             throw new ParsingException(source, "Invalid headers JSON format: " + json);
         }
         return result;
+    }
+
+    private String parseJsonString(String json, int start, Source source) {
+        if (start >= json.length()) {
+            throw new ParsingException(source, "Invalid headers JSON format: unexpected end of input");
+        }
+        char quote = json.charAt(start);
+        if (quote != '"' && quote != '\'') {
+            throw new ParsingException(source, "Invalid headers JSON format: expected quoted string");
+        }
+        StringBuilder sb = new StringBuilder();
+        int pos = start + 1;
+        while (pos < json.length()) {
+            char c = json.charAt(pos);
+            if (c == '\\' && pos + 1 < json.length()) {
+                char next = json.charAt(pos + 1);
+                if (next == quote || next == '\\' || next == 'n' || next == 'r' || next == 't') {
+                    switch (next) {
+                        case 'n' -> sb.append('\n');
+                        case 'r' -> sb.append('\r');
+                        case 't' -> sb.append('\t');
+                        default -> sb.append(next);
+                    }
+                    pos += 2;
+                    continue;
+                }
+            }
+            if (c == quote) {
+                return sb.toString();
+            }
+            sb.append(c);
+            pos++;
+        }
+        throw new ParsingException(source, "Invalid headers JSON format: unterminated string");
+    }
+
+    private int countJsonStringLength(String json, int start) {
+        if (start >= json.length()) {
+            return 0;
+        }
+        char quote = json.charAt(start);
+        if (quote != '"' && quote != '\'') {
+            return 0;
+        }
+        int pos = start + 1;
+        while (pos < json.length()) {
+            char c = json.charAt(pos);
+            if (c == '\\' && pos + 1 < json.length()) {
+                pos += 2; // skip escape sequence
+                continue;
+            }
+            if (c == quote) {
+                return pos - start + 1; // include closing quote
+            }
+            pos++;
+        }
+        return pos - start;
     }
 
     @Override

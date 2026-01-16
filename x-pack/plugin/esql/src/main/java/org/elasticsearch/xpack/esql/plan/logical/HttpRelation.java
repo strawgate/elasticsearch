@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +30,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * This represents the parsed HTTP command before physical execution.
  */
 public class HttpRelation extends LeafPlan implements TelemetryAware {
+
+    /**
+     * URL scheme prefix for internal Elasticsearch API calls.
+     */
+    public static final String INTERNAL_API_SCHEME = "api://";
 
     /**
      * HTTP methods supported by the HTTP command.
@@ -63,7 +69,7 @@ public class HttpRelation extends LeafPlan implements TelemetryAware {
         this.method = method;
         this.url = url;
         this.body = body;
-        this.headers = headers;
+        this.headers = headers == null ? Collections.emptyMap() : Map.copyOf(headers);
         this.timeout = timeout;
         this.auth = auth;
 
@@ -115,7 +121,7 @@ public class HttpRelation extends LeafPlan implements TelemetryAware {
      * Check if this is an internal API call using the api:// URL scheme.
      */
     public boolean isInternalApiCall() {
-        return url != null && url.startsWith("api://");
+        return url != null && url.startsWith(INTERNAL_API_SCHEME);
     }
 
     /**
@@ -123,7 +129,7 @@ public class HttpRelation extends LeafPlan implements TelemetryAware {
      */
     public String getInternalPath() {
         if (isInternalApiCall()) {
-            return url.substring("api://".length());
+            return url.substring(INTERNAL_API_SCHEME.length());
         }
         return null;
     }

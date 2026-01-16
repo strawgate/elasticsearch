@@ -18,9 +18,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.HttpRelation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.HttpRelation.INTERNAL_API_SCHEME;
 
 /**
  * Physical execution plan node for HTTP requests.
@@ -68,7 +71,7 @@ public class HttpExec extends LeafExec {
         this.method = method;
         this.url = url;
         this.body = body;
-        this.headers = headers;
+        this.headers = headers == null ? Collections.emptyMap() : Map.copyOf(headers);
         this.timeout = timeout;
         this.auth = auth;
         this.output = output;
@@ -133,7 +136,7 @@ public class HttpExec extends LeafExec {
      * Check if this is an internal API call using the api:// URL scheme.
      */
     public boolean isInternalApiCall() {
-        return url != null && url.startsWith("api://");
+        return url != null && url.startsWith(INTERNAL_API_SCHEME);
     }
 
     /**
@@ -141,7 +144,7 @@ public class HttpExec extends LeafExec {
      */
     public String getInternalPath() {
         if (isInternalApiCall()) {
-            return url.substring("api://".length());
+            return url.substring(INTERNAL_API_SCHEME.length());
         }
         return null;
     }
