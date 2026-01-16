@@ -50,6 +50,7 @@ dependencies {
 
   // JSONPath support for JSON_EXTRACT function
   implementation 'com.jayway.jsonpath:json-path:2.9.0'
+  implementation 'net.minidev:accessors-smart:2.5.0'
 
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')

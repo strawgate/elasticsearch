@@ -44,6 +44,21 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * This is the first dedicated JSON parsing capability in ESQL.
  */
 public class JsonExtract extends EsqlScalarFunction {
+
+    /**
+     * Exception thrown when JSON extraction fails. This is caught by the evaluator
+     * and converted to a null result. Using an exception rather than returning null
+     * allows the evaluator generator to handle null output correctly.
+     */
+    public static class JsonExtractException extends Exception {
+        public JsonExtractException(String message) {
+            super(message);
+        }
+
+        public JsonExtractException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "JsonExtract",
@@ -154,45 +169,39 @@ public class JsonExtract extends EsqlScalarFunction {
     /**
      * Optimized version when path is a compile-time constant.
      * Avoids re-parsing the JSONPath expression for each row.
+     * Throws JsonExtractException when extraction fails (converted to null by evaluator).
      */
-    @Evaluator(extraName = "Constant")
-    static BytesRef process(BytesRef jsonBytes, @Fixed JsonPath compiledPath) {
-        if (jsonBytes == null || compiledPath == null) {
-            return null;
-        }
-
+    @Evaluator(extraName = "Constant", warnExceptions = JsonExtractException.class)
+    static BytesRef process(BytesRef jsonBytes, @Fixed JsonPath compiledPath) throws JsonExtractException {
         String jsonStr = jsonBytes.utf8ToString();
         return extractWithCompiledPath(jsonStr, compiledPath);
     }
 
     /**
      * Core extraction logic when both json and path are dynamic.
-     * Returns null for: malformed JSON, missing path, non-scalar values.
+     * Throws JsonExtractException for: malformed JSON, missing path, non-scalar values, invalid path syntax.
      */
-    @Evaluator
-    static BytesRef process(BytesRef jsonBytes, BytesRef pathBytes) {
-        if (jsonBytes == null || pathBytes == null) {
-            return null;
-        }
-
+    @Evaluator(warnExceptions = JsonExtractException.class)
+    static BytesRef process(BytesRef jsonBytes, BytesRef pathBytes) throws JsonExtractException {
         String jsonStr = jsonBytes.utf8ToString();
         String pathStr = pathBytes.utf8ToString();
 
         try {
             JsonPath compiledPath = JsonPath.compile(pathStr);
             return extractWithCompiledPath(jsonStr, compiledPath);
+        } catch (JsonExtractException e) {
+            throw e;
         } catch (Exception e) {
-            // Invalid path syntax or other errors
-            return null;
+            throw new JsonExtractException("Invalid JSONPath syntax: " + pathStr, e);
         }
     }
 
-    private static BytesRef extractWithCompiledPath(String json, JsonPath path) {
+    private static BytesRef extractWithCompiledPath(String json, JsonPath path) throws JsonExtractException {
         try {
             Object result = path.read(json, JSON_PATH_CONFIG);
 
             if (result == null) {
-                return null;
+                throw new JsonExtractException("Path not found or value is null");
             }
 
             // Only return scalar values
@@ -203,14 +212,15 @@ public class JsonExtract extends EsqlScalarFunction {
             } else if (result instanceof Boolean b) {
                 return new BytesRef(b.toString());
             } else {
-                // Arrays and objects return null (use JSON_QUERY for those in future)
-                return null;
+                // Arrays and objects are not scalar values
+                throw new JsonExtractException("Value at path is not a scalar (object or array)");
             }
+        } catch (JsonExtractException e) {
+            throw e;
         } catch (PathNotFoundException e) {
-            return null;
+            throw new JsonExtractException("Path not found", e);
         } catch (Exception e) {
-            // Malformed JSON or other parsing errors
-            return null;
+            throw new JsonExtractException("Failed to parse JSON or extract value", e);
         }
     }
 
@@ -220,7 +230,7 @@ public class JsonExtract extends EsqlScalarFunction {
         var pathEval = toEvaluator.apply(path);
 
         // Optimization: if path is constant, compile it once
-        if (path.foldable() && path.dataType() == DataType.KEYWORD) {
+        if (path.foldable() && (path.dataType() == DataType.KEYWORD || path.dataType() == DataType.TEXT)) {
             try {
                 String pathStr = BytesRefs.toString(path.fold(toEvaluator.foldCtx()));
                 JsonPath compiledPath = JsonPath.compile(pathStr);

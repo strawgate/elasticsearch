@@ -81,7 +81,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "json"),
                     new TestCaseSupplier.TypedData(new BytesRef("$.name"), DataType.KEYWORD, "path")
                 ),
-                "JsonExtractEvaluator[json=Attribute[channel=0], path=Attribute[channel=1]]",
+                "JsonExtractEvaluator[jsonBytes=Attribute[channel=0], pathBytes=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
             );
@@ -94,7 +94,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"test\"}"), DataType.KEYWORD, "json"),
                     new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "path")
                 ),
-                "JsonExtractEvaluator[json=Attribute[channel=0], path=Attribute[channel=1]]",
+                "JsonExtractEvaluator[jsonBytes=Attribute[channel=0], pathBytes=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
             );
@@ -153,16 +153,27 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier fixedNullCase(String name, String json, String path) {
+        // Determine the specific exception message based on the test case
+        String exceptionMessage;
+        if (json.contains("{invalid")) {
+            exceptionMessage = "Failed to parse JSON or extract value";
+        } else if (path.contains("[invalid")) {
+            exceptionMessage = "Invalid JSONPath syntax: " + path;
+        } else {
+            exceptionMessage = "Missing path in JSON: " + path;
+        }
+        
         return new TestCaseSupplier(name, List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "json"),
                     new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path")
                 ),
-                "JsonExtractEvaluator[json=Attribute[channel=0], path=Attribute[channel=1]]",
+                "JsonExtractEvaluator[jsonBytes=Attribute[channel=0], pathBytes=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
-            );
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract$JsonExtractException: " + exceptionMessage);
         });
     }
 
@@ -178,7 +189,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                 new TestCaseSupplier.TypedData(new BytesRef(json), jsonType, "json"),
                 new TestCaseSupplier.TypedData(new BytesRef(path), pathType, "path")
             ),
-            "JsonExtractEvaluator[json=Attribute[channel=0], path=Attribute[channel=1]]",
+            "JsonExtractEvaluator[jsonBytes=Attribute[channel=0], pathBytes=Attribute[channel=1]]",
             DataType.KEYWORD,
             equalTo(new BytesRef(expectedResult))
         );
