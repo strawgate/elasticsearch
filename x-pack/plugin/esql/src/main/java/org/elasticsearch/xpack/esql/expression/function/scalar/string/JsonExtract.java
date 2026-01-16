@@ -152,6 +152,20 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     /**
+     * Optimized version when path is a compile-time constant.
+     * Avoids re-parsing the JSONPath expression for each row.
+     */
+    @Evaluator(extraName = "Constant")
+    static BytesRef process(BytesRef jsonBytes, @Fixed JsonPath compiledPath) {
+        if (jsonBytes == null || compiledPath == null) {
+            return null;
+        }
+
+        String jsonStr = jsonBytes.utf8ToString();
+        return extractWithCompiledPath(jsonStr, compiledPath);
+    }
+
+    /**
      * Core extraction logic when both json and path are dynamic.
      * Returns null for: malformed JSON, missing path, non-scalar values.
      */
@@ -171,20 +185,6 @@ public class JsonExtract extends EsqlScalarFunction {
             // Invalid path syntax or other errors
             return null;
         }
-    }
-
-    /**
-     * Optimized version when path is a compile-time constant.
-     * Avoids re-parsing the JSONPath expression for each row.
-     */
-    @Evaluator(extraName = "Constant")
-    static BytesRef processConstant(BytesRef jsonBytes, @Fixed JsonPath compiledPath) {
-        if (jsonBytes == null || compiledPath == null) {
-            return null;
-        }
-
-        String jsonStr = jsonBytes.utf8ToString();
-        return extractWithCompiledPath(jsonStr, compiledPath);
     }
 
     private static BytesRef extractWithCompiledPath(String json, JsonPath path) {

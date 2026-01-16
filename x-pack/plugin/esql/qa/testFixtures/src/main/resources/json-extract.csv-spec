@@ -166,12 +166,11 @@ json:keyword | name:keyword
 {"name":"test","count":42} | test
 ;
 
-// Extract from multiple rows
-multiple-rows
-row id = 1, json = "{\"value\":\"first\"}" | eval val = json_extract(json, "$.value")
-  | union (row id = 2, json = "{\"value\":\"second\"}" | eval val = json_extract(json, "$.value"));
+// Extract from row with multiple fields
+multiple-extractions-single-row
+row id = 1, json1 = "{\"value\":\"first\"}", json2 = "{\"value\":\"second\"}"
+  | eval val1 = json_extract(json1, "$.value"), val2 = json_extract(json2, "$.value");
 
-id:integer | json:keyword | val:keyword
-1 | {"value":"first"} | first
-2 | {"value":"second"} | second
+id:integer | json1:keyword | json2:keyword | val1:keyword | val2:keyword
+1 | {"value":"first"} | {"value":"second"} | first | second
 ;
