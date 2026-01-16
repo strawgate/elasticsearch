@@ -47,14 +47,21 @@ public class DotProduct extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_DOT_PRODUCT;
         }
+
+        @Override
+        public String toString() {
+            return "V_DOT_PRODUCT";
+        }
     };
 
     @FunctionInfo(
         returnType = "double",
-        preview = true,
         description = "Calculates the dot product between two dense_vectors.",
         examples = { @Example(file = "vector-dot-product", tag = "vector-dot-product") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
+        depthOffset = 1  // So this appears as a subsection of vector similarity functions
     )
     public DotProduct(
         Source source,

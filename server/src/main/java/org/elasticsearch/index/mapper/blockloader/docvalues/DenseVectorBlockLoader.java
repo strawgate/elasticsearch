@@ -15,6 +15,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
         switch (fieldType.getElementType()) {
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
                 if (floatVectorValues != null) {
                     if (fieldType.isNormalized()) {
@@ -83,7 +84,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
             }
         }
 
-        return new ConstantNullsReader();
+        return ConstantNull.READER;
     }
 
     /**
