@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.HttpOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -116,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.HttpExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -297,6 +299,8 @@ public class LocalExecutionPlanner {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
+        } else if (node instanceof HttpExec http) {
+            return planHttp(http, context);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
         }
@@ -859,6 +863,22 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
+    }
+
+    private PhysicalOperation planHttp(HttpExec httpExec, LocalExecutionPlannerContext context) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(httpExec.output());
+        return PhysicalOperation.fromSource(
+            new HttpOperator.HttpOperatorFactory(
+                httpExec.method().name(),
+                httpExec.url(),
+                httpExec.body(),
+                httpExec.headers(),
+                httpExec.timeout(),
+                httpExec.auth()
+            ),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

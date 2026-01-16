@@ -796,6 +796,46 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#httpCommand}.
+   * @param ctx the parse tree
+   */
+  void enterHttpCommand(EsqlBaseParser.HttpCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#httpCommand}.
+   * @param ctx the parse tree
+   */
+  void exitHttpCommand(EsqlBaseParser.HttpCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#httpMethodName}.
+   * @param ctx the parse tree
+   */
+  void enterHttpMethodName(EsqlBaseParser.HttpMethodNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#httpMethodName}.
+   * @param ctx the parse tree
+   */
+  void exitHttpMethodName(EsqlBaseParser.HttpMethodNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#httpOptions}.
+   * @param ctx the parse tree
+   */
+  void enterHttpOptions(EsqlBaseParser.HttpOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#httpOptions}.
+   * @param ctx the parse tree
+   */
+  void exitHttpOptions(EsqlBaseParser.HttpOptionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#httpOption}.
+   * @param ctx the parse tree
+   */
+  void enterHttpOption(EsqlBaseParser.HttpOptionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#httpOption}.
+   * @param ctx the parse tree
+   */
+  void exitHttpOption(EsqlBaseParser.HttpOptionContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    */

@@ -1,0 +1,8 @@
+# Entitlement policy for ES|QL plugin
+# Grants permissions for HTTP requests made by the HttpOperator
+
+# The compute module needs outbound network access for HTTP requests
+# Note: Even though compute has a module-info.java, it's loaded in the 
+# unnamed module space within the x-pack-esql plugin layer
+ALL-UNNAMED:
+  - outbound_network

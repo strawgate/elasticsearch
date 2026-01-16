@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.HttpRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -78,7 +79,8 @@ public enum FeatureMetric {
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(Subquery.class::isInstance),
-    PROMQL(PromqlCommand.class::isInstance);
+    PROMQL(PromqlCommand.class::isInstance),
+    HTTP(HttpRelation.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry
