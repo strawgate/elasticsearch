@@ -1,5 +1,6 @@
 // Basic extraction tests
 basic-extraction
+required_capability: json_extract_function
 row json = "{\"name\":\"elasticsearch\"}" | eval extracted = json_extract(json, "$.name");
 
 json:keyword | extracted:keyword
@@ -7,6 +8,7 @@ json:keyword | extracted:keyword
 ;
 
 nested-path
+required_capability: json_extract_function
 row json = "{\"user\":{\"address\":{\"city\":\"Amsterdam\"}}}" | eval city = json_extract(json, "$.user.address.city");
 
 json:keyword | city:keyword
@@ -14,6 +16,7 @@ json:keyword | city:keyword
 ;
 
 array-access
+required_capability: json_extract_function
 row json = "{\"tags\":[\"search\",\"analytics\",\"observability\"]}" | eval tag = json_extract(json, "$.tags[1]");
 
 json:keyword | tag:keyword
@@ -21,6 +24,7 @@ json:keyword | tag:keyword
 ;
 
 array-first-element
+required_capability: json_extract_function
 row json = "{\"items\":[\"first\",\"second\",\"third\"]}" | eval item = json_extract(json, "$.items[0]");
 
 json:keyword | item:keyword
@@ -28,6 +32,7 @@ json:keyword | item:keyword
 ;
 
 number-extraction
+required_capability: json_extract_function
 row json = "{\"count\":42,\"price\":19.99}" | eval price = json_extract(json, "$.price"), count = json_extract(json, "$.count");
 
 json:keyword | price:keyword | count:keyword
@@ -35,6 +40,7 @@ json:keyword | price:keyword | count:keyword
 ;
 
 boolean-extraction
+required_capability: json_extract_function
 row json = "{\"active\":true,\"enabled\":false}" | eval active = json_extract(json, "$.active"), enabled = json_extract(json, "$.enabled");
 
 json:keyword | active:keyword | enabled:keyword
@@ -43,6 +49,7 @@ json:keyword | active:keyword | enabled:keyword
 
 // Null handling tests
 missing-path
+required_capability: json_extract_function
 row json = "{\"name\":\"test\"}" | eval result = json_extract(json, "$.nonexistent");
 
 json:keyword | result:keyword
@@ -50,6 +57,7 @@ json:keyword | result:keyword
 ;
 
 malformed-json
+required_capability: json_extract_function
 row json = "{invalid json}" | eval result = json_extract(json, "$.name");
 
 json:keyword | result:keyword
@@ -57,6 +65,7 @@ json:keyword | result:keyword
 ;
 
 null-json
+required_capability: json_extract_function
 row json = null | eval result = json_extract(json, "$.name");
 
 json:keyword | result:keyword
@@ -65,6 +74,7 @@ null | null
 
 // Complex nested structure
 complex-nested
+required_capability: json_extract_function
 row json = "{\"data\":{\"items\":[{\"id\":1,\"value\":\"first\"},{\"id\":2,\"value\":\"second\"}]}}" | eval value = json_extract(json, "$.data.items[1].value");
 
 json:keyword | value:keyword
@@ -73,6 +83,7 @@ json:keyword | value:keyword
 
 // Object and array return null
 object-returns-null
+required_capability: json_extract_function
 row json = "{\"user\":{\"name\":\"john\",\"age\":30}}" | eval user = json_extract(json, "$.user");
 
 json:keyword | user:keyword
@@ -80,6 +91,7 @@ json:keyword | user:keyword
 ;
 
 array-returns-null
+required_capability: json_extract_function
 row json = "{\"tags\":[\"a\",\"b\",\"c\"]}" | eval tags = json_extract(json, "$.tags");
 
 json:keyword | tags:keyword
@@ -88,6 +100,7 @@ json:keyword | tags:keyword
 
 // JSON with spaces
 json-with-spaces
+required_capability: json_extract_function
 row json = "{ \"name\" : \"test\" }" | eval name = json_extract(json, "$.name");
 
 json:keyword | name:keyword
@@ -96,6 +109,7 @@ json:keyword | name:keyword
 
 // Multiple extractions from same JSON
 multiple-extractions
+required_capability: json_extract_function
 row json = "{\"user\":{\"name\":\"alice\",\"age\":25,\"city\":\"Boston\"}}" | eval name = json_extract(json, "$.user.name"), age = json_extract(json, "$.user.age"), city = json_extract(json, "$.user.city");
 
 json:keyword | name:keyword | age:keyword | city:keyword
@@ -104,6 +118,7 @@ json:keyword | name:keyword | age:keyword | city:keyword
 
 // Empty string value
 empty-string-value
+required_capability: json_extract_function
 row json = "{\"name\":\"\"}" | eval name = json_extract(json, "$.name");
 
 json:keyword | name:keyword
@@ -112,6 +127,7 @@ json:keyword | name:keyword
 
 // JSON null value (different from missing path)
 json-null-value
+required_capability: json_extract_function
 row json = "{\"name\":null}" | eval name = json_extract(json, "$.name");
 
 json:keyword | name:keyword
@@ -120,6 +136,7 @@ json:keyword | name:keyword
 
 // Escaped characters
 escaped-quotes
+required_capability: json_extract_function
 row json = "{\"msg\":\"hello \\\"world\\\"\"}" | eval msg = json_extract(json, "$.msg");
 
 json:keyword | msg:keyword
@@ -128,6 +145,7 @@ json:keyword | msg:keyword
 
 // Using in WHERE clause
 filter-by-extracted-value
+required_capability: json_extract_function
 row id = 1, json = "{\"status\":\"active\"}" | eval status = json_extract(json, "$.status") | where status == "active";
 
 id:integer | json:keyword | status:keyword
@@ -136,6 +154,7 @@ id:integer | json:keyword | status:keyword
 
 // Using in aggregation
 aggregate-extracted-values
+required_capability: json_extract_function
 row id = 1, json = "{\"value\":10}" | eval val = json_extract(json, "$.value") | stats count = count(val);
 
 count:long
@@ -144,6 +163,7 @@ count:long
 
 // Nested array access
 nested-array
+required_capability: json_extract_function
 row json = "{\"data\":{\"values\":[1,2,3,4,5]}}" | eval val = json_extract(json, "$.data.values[2]");
 
 json:keyword | val:keyword
@@ -152,6 +172,7 @@ json:keyword | val:keyword
 
 // Deep nesting
 deep-nesting
+required_capability: json_extract_function
 row json = "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":\"deep\"}}}}}" | eval deep = json_extract(json, "$.a.b.c.d.e");
 
 json:keyword | deep:keyword
@@ -160,6 +181,7 @@ json:keyword | deep:keyword
 
 // Constant path folding optimization test
 constant-path-folding
+required_capability: json_extract_function
 row json = "{\"name\":\"test\",\"count\":42}" | eval name = json_extract(json, "$.name");
 
 json:keyword | name:keyword
@@ -168,6 +190,7 @@ json:keyword | name:keyword
 
 // Extract from row with multiple fields
 multiple-extractions-single-row
+required_capability: json_extract_function
 row id = 1, json1 = "{\"value\":\"first\"}", json2 = "{\"value\":\"second\"}"
   | eval val1 = json_extract(json1, "$.value"), val2 = json_extract(json2, "$.value");
 

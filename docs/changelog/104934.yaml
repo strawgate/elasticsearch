@@ -1,0 +1,5 @@
+pr: 104934
+summary: Add JSON_EXTRACT function to ES|QL
+area: ES|QL
+type: feature
+issues: [104934]
