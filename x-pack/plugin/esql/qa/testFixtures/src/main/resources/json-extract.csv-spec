@@ -1,0 +1,177 @@
+// Basic extraction tests
+basic-extraction
+row json = "{\"name\":\"elasticsearch\"}" | eval extracted = json_extract(json, "$.name");
+
+json:keyword | extracted:keyword
+{"name":"elasticsearch"} | elasticsearch
+;
+
+nested-path
+row json = "{\"user\":{\"address\":{\"city\":\"Amsterdam\"}}}" | eval city = json_extract(json, "$.user.address.city");
+
+json:keyword | city:keyword
+{"user":{"address":{"city":"Amsterdam"}}} | Amsterdam
+;
+
+array-access
+row json = "{\"tags\":[\"search\",\"analytics\",\"observability\"]}" | eval tag = json_extract(json, "$.tags[1]");
+
+json:keyword | tag:keyword
+{"tags":["search","analytics","observability"]} | analytics
+;
+
+array-first-element
+row json = "{\"items\":[\"first\",\"second\",\"third\"]}" | eval item = json_extract(json, "$.items[0]");
+
+json:keyword | item:keyword
+{"items":["first","second","third"]} | first
+;
+
+number-extraction
+row json = "{\"count\":42,\"price\":19.99}" | eval price = json_extract(json, "$.price"), count = json_extract(json, "$.count");
+
+json:keyword | price:keyword | count:keyword
+{"count":42,"price":19.99} | 19.99 | 42
+;
+
+boolean-extraction
+row json = "{\"active\":true,\"enabled\":false}" | eval active = json_extract(json, "$.active"), enabled = json_extract(json, "$.enabled");
+
+json:keyword | active:keyword | enabled:keyword
+{"active":true,"enabled":false} | true | false
+;
+
+// Null handling tests
+missing-path
+row json = "{\"name\":\"test\"}" | eval result = json_extract(json, "$.nonexistent");
+
+json:keyword | result:keyword
+{"name":"test"} | null
+;
+
+malformed-json
+row json = "{invalid json}" | eval result = json_extract(json, "$.name");
+
+json:keyword | result:keyword
+{invalid json} | null
+;
+
+null-json
+row json = null | eval result = json_extract(json, "$.name");
+
+json:keyword | result:keyword
+null | null
+;
+
+// Complex nested structure
+complex-nested
+row json = "{\"data\":{\"items\":[{\"id\":1,\"value\":\"first\"},{\"id\":2,\"value\":\"second\"}]}}" | eval value = json_extract(json, "$.data.items[1].value");
+
+json:keyword | value:keyword
+{"data":{"items":[{"id":1,"value":"first"},{"id":2,"value":"second"}]}} | second
+;
+
+// Object and array return null
+object-returns-null
+row json = "{\"user\":{\"name\":\"john\",\"age\":30}}" | eval user = json_extract(json, "$.user");
+
+json:keyword | user:keyword
+{"user":{"name":"john","age":30}} | null
+;
+
+array-returns-null
+row json = "{\"tags\":[\"a\",\"b\",\"c\"]}" | eval tags = json_extract(json, "$.tags");
+
+json:keyword | tags:keyword
+{"tags":["a","b","c"]} | null
+;
+
+// JSON with spaces
+json-with-spaces
+row json = "{ \"name\" : \"test\" }" | eval name = json_extract(json, "$.name");
+
+json:keyword | name:keyword
+{ "name" : "test" } | test
+;
+
+// Multiple extractions from same JSON
+multiple-extractions
+row json = "{\"user\":{\"name\":\"alice\",\"age\":25,\"city\":\"Boston\"}}" | eval name = json_extract(json, "$.user.name"), age = json_extract(json, "$.user.age"), city = json_extract(json, "$.user.city");
+
+json:keyword | name:keyword | age:keyword | city:keyword
+{"user":{"name":"alice","age":25,"city":"Boston"}} | alice | 25 | Boston
+;
+
+// Empty string value
+empty-string-value
+row json = "{\"name\":\"\"}" | eval name = json_extract(json, "$.name");
+
+json:keyword | name:keyword
+{"name":""} | ""
+;
+
+// JSON null value (different from missing path)
+json-null-value
+row json = "{\"name\":null}" | eval name = json_extract(json, "$.name");
+
+json:keyword | name:keyword
+{"name":null} | null
+;
+
+// Escaped characters
+escaped-quotes
+row json = "{\"msg\":\"hello \\\"world\\\"\"}" | eval msg = json_extract(json, "$.msg");
+
+json:keyword | msg:keyword
+{"msg":"hello \"world\""} | hello "world"
+;
+
+// Using in WHERE clause
+filter-by-extracted-value
+row id = 1, json = "{\"status\":\"active\"}" | eval status = json_extract(json, "$.status") | where status == "active";
+
+id:integer | json:keyword | status:keyword
+1 | {"status":"active"} | active
+;
+
+// Using in aggregation
+aggregate-extracted-values
+row id = 1, json = "{\"value\":10}" | eval val = json_extract(json, "$.value") | stats count = count(val);
+
+count:long
+1
+;
+
+// Nested array access
+nested-array
+row json = "{\"data\":{\"values\":[1,2,3,4,5]}}" | eval val = json_extract(json, "$.data.values[2]");
+
+json:keyword | val:keyword
+{"data":{"values":[1,2,3,4,5]}} | 3
+;
+
+// Deep nesting
+deep-nesting
+row json = "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":\"deep\"}}}}}" | eval deep = json_extract(json, "$.a.b.c.d.e");
+
+json:keyword | deep:keyword
+{"a":{"b":{"c":{"d":{"e":"deep"}}}}} | deep
+;
+
+// Constant path folding optimization test
+constant-path-folding
+row json = "{\"name\":\"test\",\"count\":42}" | eval name = json_extract(json, "$.name");
+
+json:keyword | name:keyword
+{"name":"test","count":42} | test
+;
+
+// Extract from multiple rows
+multiple-rows
+row id = 1, json = "{\"value\":\"first\"}" | eval val = json_extract(json, "$.value")
+  | union (row id = 2, json = "{\"value\":\"second\"}" | eval val = json_extract(json, "$.value"));
+
+id:integer | json:keyword | val:keyword
+1 | {"value":"first"} | first
+2 | {"value":"second"} | second
+;
