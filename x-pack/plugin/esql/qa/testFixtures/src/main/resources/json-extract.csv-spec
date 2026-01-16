@@ -81,21 +81,21 @@ json:keyword | value:keyword
 {"data":{"items":[{"id":1,"value":"first"},{"id":2,"value":"second"}]}} | second
 ;
 
-// Object and array return null
-object-returns-null
+// Object and array return JSON strings
+object-extraction
 required_capability: json_extract_function
 row json = "{\"user\":{\"name\":\"john\",\"age\":30}}" | eval user = json_extract(json, "$.user");
 
 json:keyword | user:keyword
-{"user":{"name":"john","age":30}} | null
+{"user":{"name":"john","age":30}} | {"name":"john","age":30}
 ;
 
-array-returns-null
+array-extraction
 required_capability: json_extract_function
 row json = "{\"tags\":[\"a\",\"b\",\"c\"]}" | eval tags = json_extract(json, "$.tags");
 
 json:keyword | tags:keyword
-{"tags":["a","b","c"]} | null
+{"tags":["a","b","c"]} | ["a","b","c"]
 ;
 
 // JSON with spaces

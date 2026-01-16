@@ -12,6 +12,8 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.PathNotFoundException;
 
+import net.minidev.json.JSONValue;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -40,8 +44,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * Extracts a scalar value from a JSON string using JSONPath syntax.
- * This is the first dedicated JSON parsing capability in ESQL.
+ * Extracts a value from a JSON string using JSONPath syntax.
+ * Returns scalar values (strings, numbers, booleans) directly, and serializes
+ * arrays and objects to JSON strings. This is the first dedicated JSON parsing
+ * capability in ESQL.
  */
 public class JsonExtract extends EsqlScalarFunction {
 
@@ -59,6 +65,7 @@ public class JsonExtract extends EsqlScalarFunction {
             super(message, cause);
         }
     }
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "JsonExtract",
@@ -81,18 +88,19 @@ public class JsonExtract extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         description = """
-            Extracts a scalar value from a JSON string using JSONPath syntax.
-            Returns the value at the specified path as a keyword, or null if
-            the path doesn't exist, the JSON is malformed, or the value is
-            not a scalar (object/array returns null).""",
+            Extracts a value from a JSON string using JSONPath syntax.
+            Returns the value at the specified path as a keyword. Scalar values
+            (strings, numbers, booleans) are returned directly, while arrays and
+            objects are serialized to JSON strings. Returns null if the path doesn't
+            exist or the JSON is malformed.""",
         examples = {
-            @Example(
-                file = "json-extract",
-                tag = "basic-extraction",
-                description = "Extract a simple field from a JSON string:"
-            ),
+            @Example(file = "json-extract", tag = "basic-extraction", description = "Extract a simple field from a JSON string:"),
             @Example(file = "json-extract", tag = "nested-path", description = "Extract a nested field:"),
-            @Example(file = "json-extract", tag = "array-access", description = "Extract an array element by index:") }
+            @Example(file = "json-extract", tag = "array-access", description = "Extract an array element by index:"),
+            @Example(file = "json-extract", tag = "object-extraction", description = "Extract an object as a JSON string:") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") }
     )
     public JsonExtract(
         Source source,
@@ -179,7 +187,7 @@ public class JsonExtract extends EsqlScalarFunction {
 
     /**
      * Core extraction logic when both json and path are dynamic.
-     * Throws JsonExtractException for: malformed JSON, missing path, non-scalar values, invalid path syntax.
+     * Throws JsonExtractException for: malformed JSON, missing path, invalid path syntax.
      */
     @Evaluator(warnExceptions = JsonExtractException.class)
     static BytesRef process(BytesRef jsonBytes, BytesRef pathBytes) throws JsonExtractException {
@@ -204,16 +212,19 @@ public class JsonExtract extends EsqlScalarFunction {
                 throw new JsonExtractException("Path not found or value is null");
             }
 
-            // Only return scalar values
+            // Return scalar values directly
             if (result instanceof String s) {
                 return new BytesRef(s);
             } else if (result instanceof Number n) {
                 return new BytesRef(n.toString());
             } else if (result instanceof Boolean b) {
                 return new BytesRef(b.toString());
+            } else if (result instanceof java.util.List || result instanceof java.util.Map) {
+                // Serialize arrays and objects to proper JSON strings
+                return new BytesRef(JSONValue.toJSONString(result));
             } else {
-                // Arrays and objects are not scalar values
-                throw new JsonExtractException("Value at path is not a scalar (object or array)");
+                // Fallback for any other type - try JSON serialization first
+                return new BytesRef(JSONValue.toJSONString(result));
             }
         } catch (JsonExtractException e) {
             throw e;

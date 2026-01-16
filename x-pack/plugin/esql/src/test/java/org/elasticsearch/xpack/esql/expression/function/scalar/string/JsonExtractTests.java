@@ -68,11 +68,13 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         // Invalid path returns null
         suppliers.add(fixedNullCase("invalid path returns null", "{\"name\":\"test\"}", "$[invalid"));
 
-        // Object returns null (not a scalar)
-        suppliers.add(fixedNullCase("object returns null", "{\"user\":{\"name\":\"john\"}}", "$.user"));
+        // Object returns JSON string
+        suppliers.add(
+            fixedCase("object returns json string", "{\"user\":{\"name\":\"john\",\"age\":30}}", "$.user", "{\"name\":\"john\",\"age\":30}")
+        );
 
-        // Array returns null (not a scalar)
-        suppliers.add(fixedNullCase("array returns null", "{\"tags\":[\"a\",\"b\"]}", "$.tags"));
+        // Array returns JSON string
+        suppliers.add(fixedCase("array returns json string", "{\"tags\":[\"a\",\"b\",\"c\"]}", "$.tags", "[\"a\",\"b\",\"c\"]"));
 
         // Null JSON returns null
         suppliers.add(new TestCaseSupplier("null json returns null", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
@@ -102,24 +104,29 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
 
         // Test with TEXT type
         suppliers.add(
-            new TestCaseSupplier("extract with text type", List.of(DataType.TEXT, DataType.TEXT), () -> testCase(
-                DataType.TEXT,
-                DataType.TEXT,
-                "{\"name\":\"test\"}",
-                "$.name",
-                "test"
-            ))
+            new TestCaseSupplier(
+                "extract with text type",
+                List.of(DataType.TEXT, DataType.TEXT),
+                () -> testCase(DataType.TEXT, DataType.TEXT, "{\"name\":\"test\"}", "$.name", "test")
+            )
         );
 
-        // Test with mixed types
+        // Test with mixed types (keyword json, text path)
         suppliers.add(
-            new TestCaseSupplier("extract with mixed types", List.of(DataType.KEYWORD, DataType.TEXT), () -> testCase(
-                DataType.KEYWORD,
-                DataType.TEXT,
-                "{\"name\":\"test\"}",
-                "$.name",
-                "test"
-            ))
+            new TestCaseSupplier(
+                "extract with mixed types keyword-text",
+                List.of(DataType.KEYWORD, DataType.TEXT),
+                () -> testCase(DataType.KEYWORD, DataType.TEXT, "{\"name\":\"test\"}", "$.name", "test")
+            )
+        );
+
+        // Test with mixed types (text json, keyword path)
+        suppliers.add(
+            new TestCaseSupplier(
+                "extract with mixed types text-keyword",
+                List.of(DataType.TEXT, DataType.KEYWORD),
+                () -> testCase(DataType.TEXT, DataType.KEYWORD, "{\"name\":\"test\"}", "$.name", "test")
+            )
         );
 
         // Complex nested structure
@@ -156,16 +163,13 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         // Determine the specific exception message based on the test case
         String exceptionMessage;
         if (name.contains("malformed")) {
-            // Line 223: Failed to parse JSON or extract value
+            // Failed to parse JSON or extract value
             exceptionMessage = "Failed to parse JSON or extract value";
         } else if (name.contains("invalid path")) {
-            // Line 195: Invalid JSONPath syntax
+            // Invalid JSONPath syntax
             exceptionMessage = "Invalid JSONPath syntax: " + path;
-        } else if (name.contains("object") || name.contains("array")) {
-            // Line 216: Value at path is not a scalar (object or array)
-            exceptionMessage = "Value at path is not a scalar (object or array)";
         } else {
-            // Line 204: Path not found or value is null (for missing paths)
+            // Path not found or value is null (for missing paths)
             exceptionMessage = "Path not found or value is null";
         }
 
@@ -179,7 +183,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                 DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line 1:1: org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract$JsonExtractException: " + exceptionMessage);
+                .withWarning(
+                    "Line 1:1: org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract$JsonExtractException: "
+                        + exceptionMessage
+                );
         });
     }
 
@@ -206,9 +213,4 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         return new JsonExtract(source, args.get(0), args.get(1));
     }
 
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        // TODO: This function doesn't serialize the Source, and must be fixed.
-        return expression;
-    }
 }

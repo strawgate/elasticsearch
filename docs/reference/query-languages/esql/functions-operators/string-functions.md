@@ -39,6 +39,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/hash.md
 :::
 
+:::{include} ../_snippets/functions/layout/json_extract.md
+:::
+
 :::{include} ../_snippets/functions/layout/left.md
 :::
 
