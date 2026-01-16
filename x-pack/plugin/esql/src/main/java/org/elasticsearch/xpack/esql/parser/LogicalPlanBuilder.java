@@ -679,13 +679,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (str == null) {
             return null;
         }
-        // Remove surrounding quotes (either single or double)
-        if ((str.startsWith("\"") && str.endsWith("\"")) || (str.startsWith("'") && str.endsWith("'"))) {
-            str = str.substring(1, str.length() - 1);
-        }
-        // Handle triple-quoted strings
+        // Handle triple-quoted strings FIRST (before checking single/double quotes)
         if (str.startsWith("\"\"\"") && str.endsWith("\"\"\"") && str.length() >= 6) {
             str = str.substring(3, str.length() - 3);
+        } else if ((str.startsWith("\"") && str.endsWith("\"")) || (str.startsWith("'") && str.endsWith("'"))) {
+            // Remove surrounding quotes (either single or double)
+            str = str.substring(1, str.length() - 1);
         }
         // Process escape sequences
         return str.replace("\\\"", "\"").replace("\\\\", "\\");
