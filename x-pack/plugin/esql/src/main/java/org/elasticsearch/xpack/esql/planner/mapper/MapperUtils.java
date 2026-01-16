@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.HttpRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HttpExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -66,6 +68,10 @@ public class MapperUtils {
         // Commands
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+        }
+
+        if (p instanceof HttpRelation httpRelation) {
+            return new HttpExec(httpRelation.source(), httpRelation);
         }
 
         return unsupported(p);

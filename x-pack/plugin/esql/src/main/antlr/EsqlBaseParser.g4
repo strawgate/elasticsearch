@@ -45,6 +45,7 @@ sourceCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     | {this.isDevVersion()}? promqlCommand
+    | {this.isDevVersion()}? httpCommand
     ;
 
 processingCommand
@@ -365,6 +366,28 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+httpCommand
+    : DEV_HTTP httpMethod=httpMethodName url=QUOTED_STRING httpOptions?
+    ;
+
+httpMethodName
+    : HTTP_GET
+    | HTTP_POST
+    | HTTP_PUT
+    | HTTP_DELETE
+    ;
+
+httpOptions
+    : HTTP_WITH httpOption (COMMA httpOption)*
+    ;
+
+httpOption
+    : HTTP_BODY ASSIGN value=QUOTED_STRING
+    | HTTP_HEADERS ASSIGN value=QUOTED_STRING
+    | HTTP_TIMEOUT ASSIGN value=QUOTED_STRING
+    | HTTP_AUTH ASSIGN value=QUOTED_STRING
     ;
 
 setCommand

@@ -15,6 +15,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.HttpRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -621,6 +623,108 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitShowInfo(EsqlBaseParser.ShowInfoContext ctx) {
         return new ShowInfo(source(ctx));
+    }
+
+    @Override
+    public LogicalPlan visitHttpCommand(EsqlBaseParser.HttpCommandContext ctx) {
+        Source source = source(ctx);
+
+        // Parse HTTP method
+        HttpRelation.HttpMethod method = parseHttpMethod(ctx.httpMethodName());
+
+        // Parse URL (remove quotes)
+        String url = unquoteString(ctx.url.getText());
+
+        // Parse optional parameters
+        String body = null;
+        Map<String, String> headers = new HashMap<>();
+        TimeValue timeout = TimeValue.timeValueSeconds(30); // Default 30 seconds
+        String auth = null;
+
+        if (ctx.httpOptions() != null) {
+            for (EsqlBaseParser.HttpOptionContext opt : ctx.httpOptions().httpOption()) {
+                if (opt.HTTP_BODY() != null) {
+                    body = unquoteString(opt.value.getText());
+                } else if (opt.HTTP_HEADERS() != null) {
+                    String headersJson = unquoteString(opt.value.getText());
+                    headers = parseHeadersJson(source, headersJson);
+                } else if (opt.HTTP_TIMEOUT() != null) {
+                    timeout = TimeValue.parseTimeValue(unquoteString(opt.value.getText()), "http.timeout");
+                } else if (opt.HTTP_AUTH() != null) {
+                    auth = unquoteString(opt.value.getText());
+                }
+            }
+        }
+
+        return new HttpRelation(source, method, url, body, headers, timeout, auth);
+    }
+
+    private HttpRelation.HttpMethod parseHttpMethod(EsqlBaseParser.HttpMethodNameContext ctx) {
+        if (ctx.HTTP_GET() != null) {
+            return HttpRelation.HttpMethod.GET;
+        }
+        if (ctx.HTTP_POST() != null) {
+            return HttpRelation.HttpMethod.POST;
+        }
+        if (ctx.HTTP_PUT() != null) {
+            return HttpRelation.HttpMethod.PUT;
+        }
+        if (ctx.HTTP_DELETE() != null) {
+            return HttpRelation.HttpMethod.DELETE;
+        }
+        throw new ParsingException(source(ctx), "Unknown HTTP method");
+    }
+
+    private String unquoteString(String str) {
+        if (str == null) {
+            return null;
+        }
+        // Remove surrounding quotes (either single or double)
+        if ((str.startsWith("\"") && str.endsWith("\"")) || (str.startsWith("'") && str.endsWith("'"))) {
+            str = str.substring(1, str.length() - 1);
+        }
+        // Handle triple-quoted strings
+        if (str.startsWith("\"\"\"") && str.endsWith("\"\"\"") && str.length() >= 6) {
+            str = str.substring(3, str.length() - 3);
+        }
+        // Process escape sequences
+        return str.replace("\\\"", "\"").replace("\\\\", "\\");
+    }
+
+    private Map<String, String> parseHeadersJson(Source source, String json) {
+        Map<String, String> result = new HashMap<>();
+        if (json == null || json.isEmpty() || json.equals("{}")) {
+            return result;
+        }
+        // Simple JSON parser for {"key": "value"} format
+        // For production, consider using a proper JSON parser
+        try {
+            json = json.trim();
+            if (json.startsWith("{") && json.endsWith("}")) {
+                json = json.substring(1, json.length() - 1);
+                if (json.isEmpty() == false) {
+                    String[] pairs = json.split(",");
+                    for (String pair : pairs) {
+                        String[] kv = pair.split(":", 2);
+                        if (kv.length == 2) {
+                            String key = kv[0].trim();
+                            String value = kv[1].trim();
+                            // Remove quotes from key and value
+                            if ((key.startsWith("\"") && key.endsWith("\"")) || (key.startsWith("'") && key.endsWith("'"))) {
+                                key = key.substring(1, key.length() - 1);
+                            }
+                            if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+                                value = value.substring(1, value.length() - 1);
+                            }
+                            result.put(key, value);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new ParsingException(source, "Invalid headers JSON format: " + json);
+        }
+        return result;
     }
 
     @Override
