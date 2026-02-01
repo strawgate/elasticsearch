@@ -138,8 +138,11 @@ public class Replace extends EsqlScalarFunction {
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
     static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
-        if (str == null || regex == null || newStr == null) {
+        if (str == null) {
             return null;
+        }
+        if (regex == null || newStr == null) {
+            return str;
         }
         return safeReplace(str, Pattern.compile(regex.utf8ToString()), newStr);
     }
