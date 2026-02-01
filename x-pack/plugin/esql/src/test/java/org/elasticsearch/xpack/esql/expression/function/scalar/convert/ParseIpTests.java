@@ -37,6 +37,13 @@ public class ParseIpTests extends ESTestCase {
             new TestCase("192.168.01.1", false, true, true),
             new TestCase("192.168.0255.1", false, true, true),
 
+            // Octal overflow cases - 0400 octal = 256 decimal, 0777 octal = 511 decimal
+            // These should fail in octal mode because the values exceed 255
+            new TestCase("192.0400.168.1", false, true, false),
+            new TestCase("192.0777.168.1", false, true, false),
+            // Decimal overflow in octal mode - 256 > 255, should fail
+            new TestCase("192.256.168.1", false, false, false),
+
             new TestCase("1", false, false, false),
             new TestCase("0", false, false, false),
             new TestCase("255.1", false, false, false),
