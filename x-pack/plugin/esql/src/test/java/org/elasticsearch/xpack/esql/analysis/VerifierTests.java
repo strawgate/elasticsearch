@@ -1364,14 +1364,21 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] inside aggregation function \
+            [max(avg(rate(network.bytes_in)))]; only time-series aggregation function can be used inside another aggregation function"""));
 
         assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] inside aggregation function \
+            [max(avg(rate(network.bytes_in)))]; only time-series aggregation function can be used inside another aggregation function"""));
+
+        // Test that aggregates inside time-series aggregate fields produce correct error
+        assertThat(error("TS test  | STATS max(rate(avg(network.bytes_in)))", tsdb), equalTo("""
+            1:27: nested aggregations [avg(network.bytes_in)] \
+            not allowed inside other aggregations [rate(avg(network.bytes_in))]
+            line 1:12: cannot use aggregate function [avg(network.bytes_in)] inside over-time aggregation function \
+            [rate(avg(network.bytes_in))]"""));
 
         assertThat(
             error("TS test  | STATS COUNT(*)", tsdb),

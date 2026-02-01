@@ -256,26 +256,30 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 }
                 outer.field().forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {
-                        fail(
-                            this,
-                            "cannot use aggregate function [{}] inside aggregation function [{}];"
-                                + "only time-series aggregation function can be used inside another aggregation function",
-                            nested.sourceText(),
-                            outer.sourceText()
-                        );
-                    }
-                    nested.field()
-                        .forEachDown(
-                            AggregateFunction.class,
-                            nested2 -> failures.add(
-                                fail(
-                                    this,
-                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
-                                    nested.sourceText(),
-                                    nested2.sourceText()
-                                )
+                        failures.add(
+                            fail(
+                                this,
+                                "cannot use aggregate function [{}] inside aggregation function [{}]; "
+                                    + "only time-series aggregation function can be used inside another aggregation function",
+                                nested.sourceText(),
+                                outer.sourceText()
                             )
                         );
+                    } else {
+                        // Only check for nested aggregates inside time-series aggregate functions
+                        nested.field()
+                            .forEachDown(
+                                AggregateFunction.class,
+                                nested2 -> failures.add(
+                                    fail(
+                                        this,
+                                        "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
+                                        nested2.sourceText(),
+                                        nested.sourceText()
+                                    )
+                                )
+                            );
+                    }
                 });
                 // }
             }
