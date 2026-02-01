@@ -26,6 +26,37 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IpPrefixTests extends AbstractScalarFunctionTestCase {
+
+    /**
+     * Tests that buffer reuse across multiple invocations doesn't cause stale data.
+     * This tests the bug where when remainingBits == 0, the byte at fullBytes index
+     * was not being zeroed, leading to stale data from previous invocations.
+     */
+    public void testBufferReuseWithDifferentPrefixLengths() {
+        // Create a shared scratch buffer (simulates THREAD_LOCAL reuse)
+        var scratch = new org.apache.lucene.util.BytesRef(new byte[16], 0, 16);
+
+        // First call: IP with /32 prefix (fullBytes=4, remainingBits=0)
+        // This will set bytes 0-3 to the IP octets and bytes 4-15 should be zeroed
+        var ip1 = EsqlDataTypeConverter.stringToIP("192.168.1.255");
+        var result1 = IpPrefix.process(scratch, ip1, 32, 128);
+        assertThat(result1, equalTo(EsqlDataTypeConverter.stringToIP("192.168.1.255")));
+
+        // Second call: IP with /24 prefix (fullBytes=3, remainingBits=0)
+        // This will set bytes 0-2 to the IP octets
+        // The bug was that byte 3 wasn't zeroed, keeping the "255" from the previous call
+        var ip2 = EsqlDataTypeConverter.stringToIP("10.0.0.1");
+        var result2 = IpPrefix.process(scratch, ip2, 24, 128);
+
+        // Without the fix, this would incorrectly include the "255" from ip1
+        // resulting in "10.0.0.255" instead of the correct "10.0.0.0"
+        assertThat(result2, equalTo(EsqlDataTypeConverter.stringToIP("10.0.0.0")));
+
+        // Third call: Verify with another /16 prefix
+        var ip3 = EsqlDataTypeConverter.stringToIP("172.31.255.254");
+        var result3 = IpPrefix.process(scratch, ip3, 16, 128);
+        assertThat(result3, equalTo(EsqlDataTypeConverter.stringToIP("172.31.0.0")));
+    }
     public IpPrefixTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

@@ -176,9 +176,10 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
             scratch.bytes[fullBytes] = (byte) (ip.bytes[ip.offset + fullBytes] & lastByteMask);
         }
 
-        // Copy the last empty bytes
-        if (fullBytes < 16) {
-            Arrays.fill(scratch.bytes, fullBytes + 1, 16, (byte) 0);
+        // Zero out remaining bytes - start after the masked byte if present, otherwise at fullBytes
+        int fillStart = remainingBits > 0 ? fullBytes + 1 : fullBytes;
+        if (fillStart < 16) {
+            Arrays.fill(scratch.bytes, fillStart, 16, (byte) 0);
         }
     }
 
