@@ -1,0 +1,264 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+
+import com.jayway.jsonpath.Configuration;
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.Option;
+import com.jayway.jsonpath.PathNotFoundException;
+
+import net.minidev.json.JSONValue;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+
+/**
+ * Extracts a value from a JSON string using JSONPath syntax.
+ * Returns scalar values (strings, numbers, booleans) directly, and serializes
+ * arrays and objects to JSON strings. This is the first dedicated JSON parsing
+ * capability in ESQL.
+ */
+public class JsonExtract extends EsqlScalarFunction {
+
+    /**
+     * Exception thrown when JSON extraction fails. This is caught by the evaluator
+     * and converted to a null result. Using an exception rather than returning null
+     * allows the evaluator generator to handle null output correctly.
+     */
+    public static class JsonExtractException extends Exception {
+        public JsonExtractException(String message) {
+            super(message);
+        }
+
+        public JsonExtractException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "JsonExtract",
+        JsonExtract::new
+    );
+
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
+
+    private final Expression json;
+    private final Expression path;
+
+    // Static configuration for JsonPath - return null for missing paths
+    private static final Configuration JSON_PATH_CONFIG = Configuration.builder()
+        .options(Option.DEFAULT_PATH_LEAF_TO_NULL)
+        .options(Option.SUPPRESS_EXCEPTIONS)
+        .build();
+
+    @FunctionInfo(
+        returnType = "keyword",
+        description = """
+            Extracts a value from a JSON string using JSONPath syntax.
+            Returns the value at the specified path as a keyword. Scalar values
+            (strings, numbers, booleans) are returned directly, while arrays and
+            objects are serialized to JSON strings. Returns null if the path doesn't
+            exist or the JSON is malformed.""",
+        examples = {
+            @Example(file = "json-extract", tag = "basic-extraction", description = "Extract a simple field from a JSON string:"),
+            @Example(file = "json-extract", tag = "nested-path", description = "Extract a nested field:"),
+            @Example(file = "json-extract", tag = "array-access", description = "Extract an array element by index:"),
+            @Example(file = "json-extract", tag = "object-extraction", description = "Extract an object as a JSON string:") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") }
+    )
+    public JsonExtract(
+        Source source,
+        @Param(name = "json", type = { "keyword", "text" }, description = "JSON string to extract from.") Expression json,
+        @Param(
+            name = "path",
+            type = { "keyword", "text" },
+            description = "JSONPath expression (e.g., '$.foo.bar', '$.arr[0]')."
+        ) Expression path
+    ) {
+        super(source, Arrays.asList(json, path));
+        this.json = json;
+        this.path = path;
+    }
+
+    private JsonExtract(StreamInput in) throws IOException {
+        this(
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+                ? Source.readFrom((PlanStreamInput) in)
+                : Source.EMPTY,
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+            source().writeTo(out);
+        }
+        out.writeNamedWriteable(json);
+        out.writeNamedWriteable(path);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        TypeResolution resolution = isString(json, sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isString(path, sourceText(), SECOND);
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataType.KEYWORD;
+    }
+
+    @Override
+    public boolean foldable() {
+        return json.foldable() && path.foldable();
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new JsonExtract(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, JsonExtract::new, json, path);
+    }
+
+    /**
+     * Optimized version when path is a compile-time constant.
+     * Avoids re-parsing the JSONPath expression for each row.
+     * Throws JsonExtractException when extraction fails (converted to null by evaluator).
+     */
+    @Evaluator(extraName = "Constant", warnExceptions = JsonExtractException.class)
+    static BytesRef process(BytesRef jsonBytes, @Fixed JsonPath compiledPath) throws JsonExtractException {
+        String jsonStr = jsonBytes.utf8ToString();
+        return extractWithCompiledPath(jsonStr, compiledPath);
+    }
+
+    /**
+     * Core extraction logic when both json and path are dynamic.
+     * Throws JsonExtractException for: malformed JSON, missing path, invalid path syntax.
+     */
+    @Evaluator(warnExceptions = JsonExtractException.class)
+    static BytesRef process(BytesRef jsonBytes, BytesRef pathBytes) throws JsonExtractException {
+        String jsonStr = jsonBytes.utf8ToString();
+        String pathStr = pathBytes.utf8ToString();
+
+        try {
+            JsonPath compiledPath = JsonPath.compile(pathStr);
+            return extractWithCompiledPath(jsonStr, compiledPath);
+        } catch (JsonExtractException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new JsonExtractException("Invalid JSONPath syntax: " + pathStr, e);
+        }
+    }
+
+    private static BytesRef extractWithCompiledPath(String json, JsonPath path) throws JsonExtractException {
+        try {
+            Object result = path.read(json, JSON_PATH_CONFIG);
+
+            if (result == null) {
+                throw new JsonExtractException("Path not found or value is null");
+            }
+
+            // Return scalar values directly
+            if (result instanceof String s) {
+                return new BytesRef(s);
+            } else if (result instanceof Number n) {
+                return new BytesRef(n.toString());
+            } else if (result instanceof Boolean b) {
+                return new BytesRef(b.toString());
+            } else if (result instanceof java.util.List || result instanceof java.util.Map) {
+                // Serialize arrays and objects to proper JSON strings
+                return new BytesRef(JSONValue.toJSONString(result));
+            } else {
+                // Fallback for any other type - try JSON serialization first
+                return new BytesRef(JSONValue.toJSONString(result));
+            }
+        } catch (JsonExtractException e) {
+            throw e;
+        } catch (PathNotFoundException e) {
+            throw new JsonExtractException("Path not found", e);
+        } catch (Exception e) {
+            throw new JsonExtractException("Failed to parse JSON or extract value", e);
+        }
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var jsonEval = toEvaluator.apply(json);
+        var pathEval = toEvaluator.apply(path);
+
+        // Optimization: if path is constant, compile it once
+        if (path.foldable() && (path.dataType() == DataType.KEYWORD || path.dataType() == DataType.TEXT)) {
+            try {
+                String pathStr = BytesRefs.toString(path.fold(toEvaluator.foldCtx()));
+                JsonPath compiledPath = JsonPath.compile(pathStr);
+                return new JsonExtractConstantEvaluator.Factory(source(), jsonEval, compiledPath);
+            } catch (Exception e) {
+                // Invalid path - fall back to regular evaluator which will return null
+            }
+        }
+
+        return new JsonExtractEvaluator.Factory(source(), jsonEval, pathEval);
+    }
+
+    public Expression json() {
+        return json;
+    }
+
+    public Expression path() {
+        return path;
+    }
+}

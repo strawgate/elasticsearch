@@ -6,6 +6,7 @@
 * [`ENDS_WITH`](../../functions-operators/string-functions.md#esql-ends_with)
 * [`FROM_BASE64`](../../functions-operators/string-functions.md#esql-from_base64)
 * [`HASH`](../../functions-operators/string-functions.md#esql-hash)
+* [`JSON_EXTRACT`](../../functions-operators/string-functions.md#esql-json_extract)
 * [`LEFT`](../../functions-operators/string-functions.md#esql-left)
 * [`LENGTH`](../../functions-operators/string-functions.md#esql-length)
 * [`LOCATE`](../../functions-operators/string-functions.md#esql-locate)

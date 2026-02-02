@@ -819,6 +819,12 @@ public class EsqlCapabilities {
         HASH_FUNCTION_ALIASES_V1,
 
         /**
+         * Support for JSON_EXTRACT function to extract scalar values from JSON strings using JSONPath.
+         * https://github.com/elastic/elasticsearch/issues/104934
+         */
+        JSON_EXTRACT_FUNCTION,
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
